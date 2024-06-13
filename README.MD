@@ -53,6 +53,9 @@ Ensure you have the following installed on your local machine:
     ```
 5. Create a `.env` file in the `server/core` directory and add stripe secret key and prices (copy from .env.example)
 
+6. `/docs/` for swagger Ui and endpoints.
+
+7. superuser `email: admin@gamil.com` , `password: admin`
 ### Client
 
 1. Navigate to the `client` directory:

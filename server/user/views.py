@@ -5,6 +5,8 @@ from rest_framework import exceptions as rest_exceptions, response, decorators a
 from rest_framework_simplejwt import tokens, views as jwt_views, serializers as jwt_serializers, exceptions as jwt_exceptions
 from user import serializers, models
 import stripe
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 prices = {
@@ -16,7 +18,6 @@ prices = {
     settings.UNIVERSE_BUSINESS: "universe_business"
 }
 
-
 def get_user_tokens(user):
     refresh = tokens.RefreshToken.for_user(user)
     return {
@@ -24,7 +25,22 @@ def get_user_tokens(user):
         "access_token": str(refresh.access_token)
     }
 
-
+@swagger_auto_schema(
+    method='post',
+    request_body=serializers.LoginSerializer,
+    responses={
+        200: openapi.Response(
+            description="Successful login",
+            examples={
+                "application/json": {
+                    "refresh_token": "string",
+                    "access_token": "string"
+                }
+            }
+        ),
+        401: openapi.Response(description="Authentication failed"),
+    }
+)
 @rest_decorators.api_view(["POST"])
 @rest_decorators.permission_classes([])
 def loginView(request):
@@ -64,6 +80,14 @@ def loginView(request):
         "Email or Password is incorrect!")
 
 
+@swagger_auto_schema(
+    method='post',
+    request_body=serializers.RegistrationSerializer,
+    responses={
+        200: openapi.Response(description="Successful registration"),
+        400: openapi.Response(description="Validation errors")
+    }
+)
 @rest_decorators.api_view(["POST"])
 @rest_decorators.permission_classes([])
 def registerView(request):
@@ -77,6 +101,13 @@ def registerView(request):
     return rest_exceptions.AuthenticationFailed("Invalid credentials!")
 
 
+@swagger_auto_schema(
+    method='post',
+    responses={
+        200: openapi.Response(description="Successful logout"),
+        400: openapi.Response(description="Invalid token")
+    }
+)
 @rest_decorators.api_view(['POST'])
 @rest_decorators.permission_classes([rest_permissions.IsAuthenticated])
 def logoutView(request):
@@ -91,7 +122,7 @@ def logoutView(request):
         res.delete_cookie(settings.SIMPLE_JWT['AUTH_COOKIE_REFRESH'])
         res.delete_cookie("X-CSRFToken")
         res.delete_cookie("csrftoken")
-        res["X-CSRFToken"]=None
+        res["X-CSRFToken"] = None
         
         return res
     except:
@@ -129,25 +160,73 @@ class CookieTokenRefreshView(jwt_views.TokenRefreshView):
         return super().finalize_response(request, response, *args, **kwargs)
 
 
+@swagger_auto_schema(
+    method='get',
+    manual_parameters=[
+        openapi.Parameter(
+            'Authorization', openapi.IN_HEADER, description="Bearer <token>", type=openapi.TYPE_STRING
+        ),
+    ],
+    responses={
+        200: openapi.Response(
+            description="Successful retrieval of user data",
+            examples={
+                "application/json": {
+                    "id": 1,
+                    "email": "user@example.com",
+                    "is_staff": False,
+                    "first_name": "John",
+                    "last_name": "Doe"
+                }
+            }
+        ),
+        404: openapi.Response(description="User not found")
+    }
+)
 @rest_decorators.api_view(["GET"])
 @rest_decorators.permission_classes([rest_permissions.IsAuthenticated])
 def user(request):
     try:
         user = models.User.objects.get(id=request.user.id)
     except models.User.DoesNotExist:
-        return response.Response(status_code=404)
+        return response.Response(status=404)
 
     serializer = serializers.UserSerializer(user)
     return response.Response(serializer.data)
 
 
+@swagger_auto_schema(
+    method='get',
+    manual_parameters=[
+        openapi.Parameter(
+            'Authorization', openapi.IN_HEADER, description="Bearer <token>", type=openapi.TYPE_STRING
+        ),
+    ],
+    responses={
+        200: openapi.Response(
+            description="Successful retrieval of subscriptions",
+            examples={
+                "application/json": {
+                    "subscriptions": [
+                        {
+                            "id": "sub_123456789",
+                            "start_date": "2023-01-01T00:00:00Z",
+                            "plan": "world_individual"
+                        }
+                    ]
+                }
+            }
+        ),
+        404: openapi.Response(description="User not found")
+    }
+)
 @rest_decorators.api_view(["GET"])
 @rest_decorators.permission_classes([rest_permissions.IsAuthenticated])
 def getSubscriptions(request):
     try:
         user = models.User.objects.get(id=request.user.id)
     except models.User.DoesNotExist:
-        return response.Response(status_code=404)
+        return response.Response(status=404)
 
     subscriptions = []
     customer = stripe.Customer.search(query=f'email:"{user.email}"')

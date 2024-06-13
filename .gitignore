@@ -1,3 +1,5 @@
 .DS_Store
 .env
 */config/index.js
+server/venv/
+client/node_modules/
